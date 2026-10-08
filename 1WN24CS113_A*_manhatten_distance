@@ -122,10 +122,7 @@ def print_solution(path):
             print(state[i], state[i + 1], state[i + 2])
 
     print("\nTotal moves:", len(path) - 1)
-print("A* USING MISPLACED TILES")
-path1 = a_star(initial, goal, misplaced_tiles)
 
-print_solution(path1)
 print("A* USING MANHATTAN DISTANCE")
 path2 = a_star(initial, goal, manhattan_distance)
 
