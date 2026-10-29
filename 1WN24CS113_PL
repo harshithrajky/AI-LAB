@@ -1,0 +1,52 @@
+from itertools import product
+
+def implication(a, b):
+    return (not a) or b
+
+def check_kb(P, Q, R):
+    return (
+        implication(P, Q)
+        and implication(Q, R)
+        and P
+    )
+
+def tt_entails():
+    symbols = ['P', 'Q', 'R']
+    entails = True
+
+    print("P Q R | KB | Query")
+
+    for values in product([True, False], repeat=3):
+        P, Q, R = values
+
+        kb = check_kb(P, Q, R)
+        query = R
+
+        print(
+            P, Q, R, "|",
+            kb, "|", query
+        )
+
+        if kb and not query:
+            entails = False
+
+    return entails
+
+
+if tt_entails():
+    print("\nKB entails Query")
+    print("KB|=Query")
+else:
+    print("\nKB does not entail Query")
+output:
+P Q R | KB | Query
+True True True | True | True
+True True False | False | False
+True False True | False | True
+True False False | False | False
+False True True | False | True
+False True False | False | False
+False False True | False | True
+False False False | False | False
+
+KB entails Query
