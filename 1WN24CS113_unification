@@ -1,64 +1,92 @@
 
-def unify(x, y, subst=None):
-    if subst is None:
-        subst = {}
+import re
 
+def parse(expr):
+    tokens = re.findall(r'[A-Za-z_]\w*|[(),]', expr)
+    pos = 0
+
+    def read():
+        nonlocal pos
+        name = tokens[pos]
+        pos += 1
+
+        if pos < len(tokens) and tokens[pos] == '(':
+            pos += 1
+            args = []
+
+            while True:
+                args.append(read())
+
+                if tokens[pos] == ')':
+                    pos += 1
+                    break
+
+                pos += 1
+
+            return (name, args)
+
+        return name
+
+    return read()
+
+
+def unify(x, y, subst, variables):
     if x == y:
-        return subst
-
-    if x in subst:
-        return unify(subst[x], y, subst)
-
-    if y in subst:
-        return unify(x, subst[y], subst)
-
-    if isinstance(x, str) and x.islower():
-        if occurs(x, y):
-            return "FAILURE"
-        subst[x] = y
-        return subst
-
-    if isinstance(y, str) and y.islower():
-        if occurs(y, x):
-            return "FAILURE"
-        subst[y] = x
-        return subst
-
-    if isinstance(x, tuple) and isinstance(y, tuple):
-        if x[0] != y[0] or len(x) != len(y):
-            return "FAILURE"
-
-        for a, b in zip(x[1:], y[1:]):
-            subst = unify(a, b, subst)
-            if subst == "FAILURE":
-                return "FAILURE"
-
-        return subst
-
-    return "FAILURE"
-
-
-def occurs(var, expr):
-    if var == expr:
         return True
 
-    if isinstance(expr, tuple):
-        return any(occurs(var, item) for item in expr[1:])
+    if isinstance(x, str) and x in variables:
+        subst[x] = y
+        return True
+
+    if isinstance(y, str) and y in variables:
+        subst[y] = x
+        return True
+
+    if isinstance(x, tuple) and isinstance(y, tuple):
+
+        if x[0] != y[0] or len(x[1]) != len(y[1]):
+            return False
+
+        for a, b in zip(x[1], y[1]):
+            if not unify(a, b, subst, variables):
+                return False
+
+        return True
 
     return False
 
 
-# Example from the PDF
-expr1 = ("Eats", "x", "Apple")
-expr2 = ("Eats", "Riya", "y")
+def display(expr):
+    if isinstance(expr, tuple):
+        return expr[0] + "(" + ",".join(display(a) for a in expr[1]) + ")"
+    return expr
 
-result = unify(expr1, expr2)
 
-if result == "FAILURE":
-    print("Unification Failed")
+# User input
+e1 = input("Enter first expression: ")
+e2 = input("Enter second expression: ")
+
+variables = set(input("Enter variables separated by comma: ").replace(" ", "").split(","))
+
+expr1 = parse(e1)
+expr2 = parse(e2)
+
+subst = {}
+
+if unify(expr1, expr2, subst, variables):
+    print("\nUnification Successful")
+    print("Substitutions:")
+
+    for key, value in subst.items():
+        print(key, "=", display(value))
 else:
-    print("Unification Successful")
-    print("Substitution:", result)
+    print("\nUnification Failed")
 output:
+Enter first expression: P(x,h(y))
+Enter second expression: P(a,h(b))
+Enter variables separated by comma: x,y
+
 Unification Successful
-Substitution: {'x': 'Riya', 'y': 'Apple'}
+Substitutions:
+x = a
+y = b
