@@ -1,101 +1,159 @@
+var_count = 0
 
-# First Order Logic - Forward Chaining
 
-# Knowledge Base (Facts)
-facts = {
-    ("American", "Robert"),
-    ("Missile", "T1"),
+def STANDARDIZE_VARIABLES(rule):
+    global var_count
+    var_count += 1
+    mapping = {}
+
+    def rename(x):
+        if isinstance(x, str) and x.startswith("?"):
+            if x not in mapping:
+                mapping[x] = "?v" + str(var_count) + str(len(mapping))
+            return mapping[x]
+
+        if isinstance(x, tuple):
+            return tuple(rename(i) for i in x)
+
+        return x
+
+    return (rename(rule[0]), rename(rule[1]))
+
+
+def SUBST(theta, x):
+    if isinstance(x, str):
+        return theta.get(x, x)
+
+    if isinstance(x, tuple):
+        return tuple(SUBST(theta, i) for i in x)
+
+    return x
+
+
+def UNIFY(x, y, theta):
+    if theta is None:
+        return None
+
+    x = SUBST(theta, x)
+    y = SUBST(theta, y)
+
+    if x == y:
+        return theta
+
+    if isinstance(x, str) and x.startswith("?"):
+        theta[x] = y
+        return theta
+
+    if isinstance(y, str) and y.startswith("?"):
+        theta[y] = x
+        return theta
+
+    if isinstance(x, tuple) and isinstance(y, tuple):
+        if len(x) != len(y):
+            return None
+
+        for a, b in zip(x, y):
+            theta = UNIFY(a, b, theta)
+
+            if theta is None:
+                return None
+
+        return theta
+
+    return None
+
+
+def match_all(premises, facts, i=0, theta=None):
+    if theta is None:
+        theta = {}
+
+    if i == len(premises):
+        return [theta]
+
+    results = []
+
+    for fact in facts:
+        sub = UNIFY(
+            SUBST(theta, premises[i]),
+            fact,
+            theta.copy()
+        )
+
+        if sub is not None:
+            results.extend(
+                match_all(premises, facts, i + 1, sub)
+            )
+
+    return results
+
+
+def FOL_FC_ASK(KB, alpha):
+    while True:
+        new = []
+
+        for rule in KB["rules"]:
+            premises, conclusion = STANDARDIZE_VARIABLES(rule)
+
+            substitutions = match_all(premises, KB["facts"])
+
+            for theta in substitutions:
+                q = SUBST(theta, conclusion)
+
+                if not any(UNIFY(q, f, {}) is not None
+                           for f in KB["facts"] + new):
+
+                    new.append(q)
+
+                    phi = UNIFY(q, alpha, {})
+
+                    if phi is not None:
+                        return phi
+
+        if not new:
+            return False
+
+        KB["facts"].extend(new)
+
+
+facts = [
     ("Owns", "A", "T1"),
+    ("Missile", "T1"),
+    ("American", "Robert"),
     ("Enemy", "A", "America")
-}
-
-# Rules
-rules = [
-    # Missiles are weapons
-    (["Missile"], "Weapon"),
-
-    # Enemy countries are hostile
-    (["Enemy"], "Hostile"),
-
-    # Missiles owned by A are sold by Robert to A
-    (["Missile", "Owns"], "Sells"),
-
-    # American selling weapons to hostile nations is criminal
-    (["American", "Weapon", "Sells", "Hostile"], "Criminal")
 ]
 
-# Forward Chaining
-changed = True
+rules = [
+    (
+        [("Missile", "?x"), ("Owns", "A", "?x")],
+        ("Sells", "Robert", "?x", "A")
+    ),
 
-while changed:
-    changed = False
+    (
+        [("Missile", "?x")],
+        ("Weapon", "?x")
+    ),
 
-    # Rule 1: Missile -> Weapon
-    for fact in list(facts):
-        if fact[0] == "Missile":
-            new_fact = ("Weapon", fact[1])
-            if new_fact not in facts:
-                facts.add(new_fact)
-                changed = True
+    (
+        [("Enemy", "?x", "America")],
+        ("Hostile", "?x")
+    ),
 
-    # Rule 2: Enemy -> Hostile
-    for fact in list(facts):
-        if fact[0] == "Enemy":
-            new_fact = ("Hostile", fact[1])
-            if new_fact not in facts:
-                facts.add(new_fact)
-                changed = True
+    (
+        [("American", "?p"), ("Weapon", "?q"),
+         ("Sells", "?p", "?q", "?r"), ("Hostile", "?r")],
+        ("Criminal", "?p")
+    )
+]
 
-    # Rule 3: Missile and Owns -> Sells
-    for missile in list(facts):
-        if missile[0] == "Missile":
-            for owns in list(facts):
-                if owns[0] == "Owns":
-                    if missile[1] == owns[2]:
-                        new_fact = ("Sells", "Robert",
-                                    missile[1], "A")
-                        if new_fact not in facts:
-                            facts.add(new_fact)
-                            changed = True
+KB = {"facts": facts, "rules": rules}
 
-    # Rule 4: American + Weapon + Sells + Hostile -> Criminal
-    for american in list(facts):
-        if american[0] == "American":
-            for weapon in list(facts):
-                if weapon[0] == "Weapon":
-                    for sells in list(facts):
-                        if sells[0] == "Sells":
-                            for hostile in list(facts):
-                                if hostile[0] == "Hostile":
-                                    if (sells[1] == american[1]
-                                        and sells[2] == weapon[1]
-                                        and sells[3] == hostile[1]):
-                                        new_fact = ("Criminal", american[1])
-                                        if new_fact not in facts:
-                                            facts.add(new_fact)
-                                            changed = True
-
-# Display Knowledge Base
-print("Final Knowledge Base:")
-for fact in sorted(facts):
-    print(fact)
-
-# Query
 query = ("Criminal", "Robert")
 
-if query in facts:
-    print("\nQuery Proved: Robert is Criminal")
-else:
-    print("\nQuery Not Proved")
-output:
-Final Knowledge Base:
-('American', 'Robert')
-('Criminal', 'Robert')
-('Enemy', 'A', 'America')
-('Hostile', 'A')
-('Missile', 'T1')
-('Owns', 'A', 'T1')
-('Sells', 'Robert', 'T1', 'A')
-('Weapon', 'T1')
+result = FOL_FC_ASK(KB, query)
 
-Query Proved: Robert is Crimina
+if result is not False:
+    print("Query proved: Criminal(Robert)")
+else:
+    print("Query cannot be proved")
+output:
+Query proved: Criminal(Robert)
